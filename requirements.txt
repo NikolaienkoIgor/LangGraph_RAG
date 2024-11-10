@@ -1,0 +1,8 @@
+langchain
+langgraph
+openai
+python-dotenv
+langchain_community
+langchain_openai
+chromadb
+
