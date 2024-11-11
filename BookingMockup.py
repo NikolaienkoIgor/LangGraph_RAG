@@ -102,3 +102,5 @@ elif st.session_state.page == 'final_status':
         st.session_state.workflow_result = None
         st.session_state.accountant_decision = None
         st.rerun()
+
+#streamlit run BookingMockup.py
