@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from langgraph.graph import END, StateGraph
 from typing import Dict, TypedDict, Optional, Literal
 import re
+import streamlit as st
 
 load_dotenv()
 
@@ -21,12 +22,8 @@ def extractAmountFunc(state: GraphState) -> Dict[str, str]:
 def accountantDecisionFunc(state: GraphState) -> Dict[str, str]:
     print("""starting accountantDecisionFunc function""")
     amount = state.get("stateExtractAmount")
-    
-    # Validate amount is an integer and greater than 0
-    if isinstance(amount, int) and amount > 1:
-        return {"stateAccountantDecision": "booking_approved"}
-    else:
-        return {"stateAccountantDecision": "booking_rejected"}
+    decision = st.session_state.get('accountant_decision', None)
+    return {"stateAccountantDecision": decision}
 
 def continue_next(state: GraphState,) ->  Literal["to_input_second"]:
     print(f"starting continue_next function with current state: {state}")
@@ -49,6 +46,59 @@ workflow.add_conditional_edges(
 
 app = workflow.compile()
 
-user_input = input("Please enter the amount: ") + str(" $")
-result = app.invoke({"stateCustomerInput": user_input})
-print("Result:" + str(result))
+# Modify the Streamlit interface section
+if 'page' not in st.session_state:
+    st.session_state.page = 'user_input'
+    st.session_state.workflow_result = None
+    st.session_state.accountant_decision = None
+
+if st.session_state.page == 'user_input':
+    name_input = st.text_input("Please enter your name:", "")
+    amount_input = st.text_input("Please enter the amount in $:", "")
+
+    user_input = amount_input + str(" $") if amount_input else ""
+
+    if st.button("Enter"):
+        if amount_input:
+            result = app.invoke({"stateCustomerInput": user_input})
+            st.session_state.workflow_result = result
+            st.session_state.page = 'accountant_review'
+            st.rerun()
+
+elif st.session_state.page == 'accountant_review':
+    st.write("Review Booking Request")
+    st.write("Amount:", st.session_state.workflow_result.get("stateExtractAmount"))
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("Confirm"):
+            st.session_state.accountant_decision = "booking_approved"
+            st.session_state.workflow_result = app.invoke(st.session_state.workflow_result)
+            st.session_state.page = 'final_status'
+            st.rerun()
+            
+    with col2:
+        if st.button("Reject"):
+            st.session_state.accountant_decision = "booking_rejected"
+            st.session_state.workflow_result = app.invoke(st.session_state.workflow_result)
+            st.session_state.page = 'final_status'
+            st.rerun()
+
+elif st.session_state.page == 'final_status':
+    amount = st.session_state.workflow_result.get("stateExtractAmount")
+    
+    if st.session_state.accountant_decision == "booking_approved":
+        st.success(f"Amount ${amount} has been successfully booked!")
+    else:
+        st.error(f"Amount ${amount} has been rejected.")
+    
+    # Add both print and streamlit display of the result
+    print("Final Graph Execution Result:", st.session_state.workflow_result)
+    st.write("Graph Execution Result:", st.session_state.workflow_result)
+    
+    if st.button("Start New Booking"):
+        st.session_state.page = 'user_input'
+        st.session_state.workflow_result = None
+        st.session_state.accountant_decision = None
+        st.rerun()
